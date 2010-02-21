@@ -60,7 +60,7 @@
 	});
 	
 	global.console = {};
-	global.alert = global.console.log = global.console.warn = global.console.error = captureoutput = sbfunc(function(){
+	global.alert = global.console.log = global.console.warn = global.console.error = sbfunc(function(){
 		for (var i=0, len=arguments.length; i<len; i++) {
 			SYSTEM.stdout.print(arguments[i]);
 		}
