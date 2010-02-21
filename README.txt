@@ -70,7 +70,7 @@ Several modules are available to be loaded into the executing environment by usi
 
 4. "promise": "Promises" (sync/async deferral)
 
- * [promise]: Ex: var Promise = require("promise"); Promise(func);
+ * [promise](func): Example: var Promise = require("promise"); Promise(func);
    --Passes a promise "P" object to func as first parameter
      -- "P" has a .fulfill([val]) function which specifies the promise is finished/fulfilled, and optionally passes along a "val" value.
    --Returns an object that can be chained off of, with a .then(func) function, which gets a promise object "P" passed to it
@@ -89,7 +89,7 @@ Several modules are available to be loaded into the executing environment by usi
 
 5. "sbfunction": "Sandbox Functions" (protects special core functions by sandboxing them)
 
- * [sb]: Ex: var sbfunc = require("sbfunction"); func = sbfunc(func);
+ * [sb](func): Example: var sbfunc = require("sbfunction"); func = sbfunc(func);
    --sandboxes the passed in function and returns it
 
  Example:
