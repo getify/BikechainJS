@@ -41,19 +41,24 @@ return (function(){
 		publicAPI = new Promise();
 		
 		publicAPI.then = function(cb){
-			queue[queue.length] = function(val){ return cb.call(publicAPI,{value:val}); };
+			if (typeof cb == "function") queue[queue.length] = function(val){ return cb.call(publicAPI,{value:val}); };	// then() callback
+			else queue[queue.length] = function(val){ return cb; };	// then() value
 			if (promise_fulfilled) fulfill(old_ret);
 			return publicAPI;
 		};
 		
-		if (cb == null) {
+		if (cb == null) {	// empty promise
 			promise_fulfilled = true;
 		}
-		else {
+		else if (typeof cb == "function") {	// promise callback
 			cb.call(publicAPI,{fulfill:function(val){
 				promise_fulfilled = true;
 				fulfill.call(publicAPI,val);
 			},value:undef});
+		}
+		else {	// immediate promise value
+			promise_fulfilled = true;
+			return publicAPI.then(cb);
 		}
 		
 		return publicAPI;
