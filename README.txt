@@ -13,6 +13,7 @@ BikechainJS is a minimal server-side JavaScript wrapper environment (engine) aro
 Installation:
 
 1. Make sure you have a compiled, functional V8:  http://code.google.com/p/v8/
+ -- NOTE: You need to use V8 v2.1.2+ because a bug was fixed with revision 3924
 
 2. If you created the "shared" V8 library (recommended), proceed to step 4.
 
