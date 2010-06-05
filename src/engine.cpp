@@ -1,5 +1,5 @@
 /*  BikechainJS (engine)
-	v0.0.1 (c) Kyle Simpson
+	v0.0.1.1 (c) Kyle Simpson
 	MIT License
 */
 
@@ -21,13 +21,16 @@
 
 #include <engine.h>
 
+int content_type_needed = 0;
+
 // Extracts a C string from a V8 Utf8Value.
 const char* ToCString(const v8::String::Utf8Value& value) {
   return *value ? *value : "<string conversion failed>";
 }
 
 v8::Handle<v8::Value> ioRead(const v8::Arguments& args) {
-  return ReadIO();
+	v8::String::Utf8Value nonblocking(args[0]);
+	return ReadIO((strcmp(ToCString(nonblocking),"true") == 0));
 }
 
 v8::Handle<v8::Value> ioWrite(const v8::Arguments& args) {
@@ -83,6 +86,25 @@ v8::Handle<v8::Value> sysExec(const v8::Arguments& args) {
   return executeProcess(args);
 }
 
+v8::Handle<v8::Value> sysExit(const v8::Arguments& args) {
+  if (args.Length() != 1) {
+    return v8::ThrowException(v8::String::New("Bad parameters"));
+  }
+
+  if (content_type_needed) {
+    printf("Content-type: text/html\n\n");
+  }
+
+  v8::String::Utf8Value exitStatus(args[0]);
+  int status = atoi(ToCString(exitStatus));
+  exit(status);
+}
+
+v8::Handle<v8::Value> contentTypeNeeded(const v8::Arguments& args) {
+	v8::String::Utf8Value flag(args[0]);
+	content_type_needed = atoi(ToCString(flag));
+	return v8::Undefined();
+}
 
 
 
@@ -117,35 +139,38 @@ void WriteFile(const char* name, const char* content, const int size) {
   fclose(file);
 }
 
-v8::Handle<v8::Value> ReadIO() {
+v8::Handle<v8::Value> ReadIO(bool nonblocking) {
   int content_length = 100, current_size = 0, old_flags, retval;
   char cread;
   char* content = NULL;
   v8::Handle<v8::String> result = v8::String::New("",0);
 
-  #ifdef _WIN32
-    // windows doesn't have fcntl(2), so fake non-blocking stdin peek via a select() with a 20ms timeout
-    fd_set rfds;
-    struct timeval tv;
-    FD_ZERO(&rfds);
-    FD_SET(0, &rfds);
-    tv.tv_sec = 0;
-    tv.tv_usec = 20*1000;	// 20ms timeout
-    retval = select(1, &rfds, NULL, NULL, &tv);
-  #else
-    // otherwise fnctl(2) should be supported, so use it to set reads to non-blocking, then peek at the stdin stream
-    old_flags = fcntl(0, F_GETFL, 0);
-    fcntl(0, F_SETFL, old_flags | O_NONBLOCK);		/* set up non-blocking read */
-    cread = fgetc(stdin);
-    fcntl(0, F_SETFL, old_flags);		/* reset to blocking reads */
-    if (cread != EOF) {
-      ungetc(cread,stdin);
-      retval = 1;
-    }
-    else retval = 0;
-  #endif
+  if (nonblocking) { // if non-blocking read requested, peek into stdin to see if we should read or not
+	#ifdef _WIN32
+		// windows doesn't have fcntl(2), so fake non-blocking stdin peek via a select() with a 20ms timeout
+		fd_set rfds;
+		struct timeval tv;
+		FD_ZERO(&rfds);
+		FD_SET(0, &rfds);
+		tv.tv_sec = 0;
+		tv.tv_usec = 20*1000;	// 20ms timeout
+		retval = select(1, &rfds, NULL, NULL, &tv);
+	#else
+		// otherwise fnctl(2) should be supported, so use it to set reads to non-blocking, then peek at the stdin stream
+		old_flags = fcntl(0, F_GETFL, 0);
+		fcntl(0, F_SETFL, old_flags | O_NONBLOCK);		/* set up non-blocking read */
+		cread = fgetc(stdin);
+		fcntl(0, F_SETFL, old_flags);		/* reset to blocking reads */
+		if (cread != EOF) {
+		  ungetc(cread,stdin);
+		  retval = 1;
+		}
+		else retval = 0;
+	#endif
+  }
+  else retval = 1; // force read since not non-blocking
 
-  // if stdin has data, read it; otherwise, skip reading	
+  // if stdin has data or we're forcing blocking read, do the read; otherwise, skip reading	
   if (retval != 0) {
     do {
       cread = fgetc(stdin);
@@ -262,6 +287,11 @@ void ReportException(v8::TryCatch* try_catch) {
   v8::String::Utf8Value exception(try_catch->Exception());
   const char* exception_string = ToCString(exception);
   v8::Handle<v8::Message> message = try_catch->Message();
+  
+  if (content_type_needed) {
+  	printf("Content-type: text/html\n\n");
+  }
+  
   if (message.IsEmpty()) {
     // V8 didn't provide any extra information about this error; just
     // print the exception.
@@ -341,10 +371,10 @@ int RunMain(int argc, char* argv[]) {
   inject->Set(v8::String::New("FSREAD"), v8::FunctionTemplate::New(fsRead)->GetFunction());
   inject->Set(v8::String::New("FSWRITE"), v8::FunctionTemplate::New(fsWrite)->GetFunction());
   inject->Set(v8::String::New("SYSEXEC"), v8::FunctionTemplate::New(sysExec)->GetFunction());
+  inject->Set(v8::String::New("SYSEXIT"), v8::FunctionTemplate::New(sysExit)->GetFunction());
+  inject->Set(v8::String::New("CONTENTTYPENEEDED"), v8::FunctionTemplate::New(contentTypeNeeded)->GetFunction());
   v8::Handle<v8::Value> args[1] = {inject};
   
-  v8::Handle<v8::Object> global2 = v8::Object::New();
-
   enginejs_func->Call(context->Global(), 1, args);
   
   for (int i = 1; i < argc; i++) {
