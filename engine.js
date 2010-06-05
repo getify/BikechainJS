@@ -1,5 +1,5 @@
 /*! BikechainJS (engine.js)
-	v0.0.1 (c) Kyle Simpson
+	v0.0.1.1 (c) Kyle Simpson
 	MIT License
 */
 
@@ -60,10 +60,14 @@
 	});
 	
 	global.console = {};
-	global.alert = global.console.log = global.console.warn = global.console.error = sbfunc(function(){
+	global.alert = global.console.log = global.console.warn = global.console.error = sbfunc(function(){	// sandbox alert and console.xxx as special core functions
 		for (var i=0, len=arguments.length; i<len; i++) {
 			SYSTEM.stdout.print(arguments[i]);
 		}
 	});
 	
+	global.exit = sbfunc(function(exit_code){	// sandbox "exit" as special core function
+		exit_code = exit_code || 0;
+		imports.SYSEXIT(exit_code);
+	});
 })
