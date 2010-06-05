@@ -1,5 +1,5 @@
 BikechainJS Engine
-v0.0.1 (c) 2010 Kyle Simpson
+v0.0.1.1 (c) 2010 Kyle Simpson
 MIT License
 
 
@@ -37,6 +37,8 @@ Provided global environment:
 3. include_once(path-to-file): will ensure an exact file (via path) only gets loaded/parsed once.
 
 4. alert(), console.log(), console.warn(), and console.error() are all defined and mapped to [system].stdout.print().
+
+5. exit() to immediately stop execution of any javascript in this instance and flush output.
 
 
 --------------
