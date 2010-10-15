@@ -1,5 +1,5 @@
 /*! BikechainJS (os.js)
-	v0.0.1 (c) Kyle Simpson
+	v0.0.1.3 (c) Kyle Simpson
 	MIT License
 */
 
@@ -11,9 +11,10 @@ return (function(global){
 			stdout:{
 				read:function(){ return handle; }
 			},
-			stdin:{
+			// TODO: support writing to stdin of process without having to send as first param of `execute` call
+			/*stdin:{
 				write:function(){ return; }
-			},
+			},*/
 			stderr:{
 				read:function(){ return handle; }
 			}
@@ -21,14 +22,14 @@ return (function(global){
 		return pipes;
 	}
 	
-	function command() {
+	function execute() {
 		var exec = SYSEXEC.apply(global,arguments);
 		
 		return iopipe(exec);
 	}
 	
 	publicAPI = {
-		command:command
+		execute:execute
 	};	
 	return publicAPI;
 	

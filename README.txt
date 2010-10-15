@@ -1,5 +1,5 @@
 BikechainJS Engine
-v0.0.1.1 (c) 2010 Kyle Simpson
+v0.0.1.3 (c) 2010 Kyle Simpson
 MIT License
 
 
@@ -102,3 +102,27 @@ Several modules are available to be loaded into the executing environment by usi
  var sbfunc = require("sbfunction");
  var myfunc = sbfunc(myfunc);
 
+6. "request": Request Handler (utilities for managing the inbound REQUEST)
+
+ * [request].parse(REQUEST): parses the request for GET, POST, COOKIE, and other helpful environment variables
+   --Returns the augmented REQUEST object
+ * [request].value(REQUEST, name): retrieves the value (if any) of the variable `name` from GET or POST
+   --Returns the string value of variable `name`
+ * [request].exists(REQUEST, name): determines if the variable `name` exists in GET or POST
+   --Returns true/false boolean
+
+7. "response": Response Handler (utilities for managing the outbound RESPONSE)
+
+ * [response].Header(name, value): sends a response header
+ * [response].Output(name, value): ends response headers' section and begin content body
+ * [response].SetCookie(name, value, domain, path, expires): sends a Set-Cookie header
+ * [response].SessionCookie(session_name, session_id, domain, path, expires): sends a session cookie header
+
+8. "router": URI Router (handles routing decisions)
+
+ * [router].RegisterRouters(routes_filename): reads and registers route rules from `routes_filename`
+   --Returns true/false boolean
+ * [router].HandleRequest(REQUEST): determines if the REQUEST should be handled, based on the route rules
+   --Returns true/false boolean
+ * [router].RequestPath(): retrieves the RELATIVE_REQUEST_PATH from the REQUEST
+   --Returns the string value of the RELATIVE_REQUEST_PATH of the REQUEST

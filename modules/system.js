@@ -1,5 +1,5 @@
 /*! BikechainJS (system.js)
-	v0.0.1.1 (c) Kyle Simpson
+	v0.0.1.3 (c) Kyle Simpson
 	MIT License
 */
 
