@@ -1,5 +1,5 @@
 /*! BikechainJS (sbfunction.js)
-	v0.0.1.3 (c) Kyle Simpson
+	v0.0.1.4 (c) Kyle Simpson
 	MIT License
 */
 

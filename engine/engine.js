@@ -1,5 +1,5 @@
 /*! BikechainJS (engine.js)
-	v0.0.1.3 (c) Kyle Simpson
+	v0.0.1.4 (c) Kyle Simpson
 	MIT License
 */
 
@@ -47,7 +47,7 @@
 		}
 
 		if (!FS) {
-			source = imports.FSREAD(module_repo_path+"fs.js");
+			source = imports.__FSRead__(module_repo_path+"fs.js");
 			loaded_modules["fs"] = FS = Function.apply(global,imports_names.concat([source])).apply(global,imports_funcs);
 		}
 		if (!forceReload && typeof loaded_modules[module_name] !== "undefined") {
@@ -96,7 +96,7 @@
 	// sandbox "exit" as special core function
 	global.exit = SANDBOX(function(exit_code){
 		exit_code = exit_code || 0;
-		imports.SYSEXIT(exit_code);
+		imports.__SysExit__(exit_code);
 	});
 
 	// pull in custom extension JSON.minify() to strip comments from JSON strings read from files

@@ -1,5 +1,5 @@
 /*  BikechainJS (engine)
-	v0.0.1.3 (c) Kyle Simpson
+	v0.0.1.4 (c) Kyle Simpson
 	MIT License
 */
 
@@ -11,7 +11,7 @@ v8::Handle<v8::Value> fsRead(const v8::Arguments& args);
 v8::Handle<v8::Value> fsWrite(const v8::Arguments& args);
 v8::Handle<v8::Value> sysExec(const v8::Arguments& args);
 v8::Handle<v8::Value> sysExit(const v8::Arguments& args);
-v8::Handle<v8::Value> contentTypeNeeded(const v8::Arguments& args);
+v8::Handle<v8::Value> setContentTypeNeeded(const v8::Arguments& args);
 v8::Handle<v8::Value> isContentTypeNeeded(const v8::Arguments& args);
 
 v8::Handle<v8::Value> ReadFile(const char* name);

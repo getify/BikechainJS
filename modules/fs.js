@@ -1,5 +1,5 @@
 /*! BikechainJS (fs.js)
-	v0.0.1.3 (c) Kyle Simpson
+	v0.0.1.4 (c) Kyle Simpson
 	MIT License
 */
 
@@ -7,16 +7,16 @@ return (function(){
 	var publicAPI;
 	
 	function read(file) {
-		return FSREAD(file);
+		return __FSRead__(file);
 	}
 	
 	function write(file,content) {
-		return FSWRITE(file,content);
+		return __FSWrite__(file,content);
 	}
 	
 	publicAPI = {
-		read:read,
-		write:write
+		read: read,
+		write: write
 	};	
 	return publicAPI;
 })();

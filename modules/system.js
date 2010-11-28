@@ -1,5 +1,5 @@
 /*! BikechainJS (system.js)
-	v0.0.1.3 (c) Kyle Simpson
+	v0.0.1.4 (c) Kyle Simpson
 	MIT License
 */
 
@@ -7,17 +7,17 @@ return (function(){
 	var publicAPI, stdin, stdout, stderr;
 	
 	function read(nonblocking) {
-		return IOREAD(!(!nonblocking));
+		return __IORead__(!(!nonblocking));
 	}
 	
 	function write() {
 		for (var i=0; i<arguments.length; i++) {
-			IOWRITE(arguments[i]);
+			__IOWrite__(arguments[i]);
 		}
 	}
 	
 	function flush() {
-		IOFLUSH();
+		__IOFlush__();
 	}
 	
 	stdin = {

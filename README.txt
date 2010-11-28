@@ -1,5 +1,5 @@
 BikechainJS Engine
-v0.0.1.3 (c) 2010 Kyle Simpson
+v0.0.1.4 (c) 2010 Kyle Simpson
 MIT License
 
 
@@ -126,3 +126,13 @@ Several modules are available to be loaded into the executing environment by usi
    --Returns true/false boolean
  * [router].RequestPath(): retrieves the RELATIVE_REQUEST_PATH from the REQUEST
    --Returns the string value of the RELATIVE_REQUEST_PATH of the REQUEST
+
+9. "storage": Storage (stateful "LocalStorage/SessionStorage" functionality in server-side middle-end)
+
+ * [storage].Init(sessionID=null): initializes the storage engine, either to an existing session (if sessionID
+                                   is passed) or starting a new session.
+   --Returns sessionID of session initialized
+
+NOTE: this module is still newly under development.
+
+  

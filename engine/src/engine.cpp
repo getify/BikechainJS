@@ -1,5 +1,5 @@
 /*  BikechainJS (engine)
-v0.0.1.3 (c) Kyle Simpson
+v0.0.1.4 (c) Kyle Simpson
 MIT License
 */
 
@@ -118,7 +118,7 @@ v8::Handle<v8::Value> sysExit(const v8::Arguments& args) {
 	exit(status);
 }
 
-v8::Handle<v8::Value> contentTypeNeeded(const v8::Arguments& args) {
+v8::Handle<v8::Value> setContentTypeNeeded(const v8::Arguments& args) {
 	v8::String::Utf8Value flag(args[0]);
 	content_type_needed = atoi(ToCString(flag));
 	return v8::Undefined();
@@ -406,15 +406,15 @@ int RunMain(int argc, char* argv[]) {
 	v8::Handle<v8::Function> enginejs_func = v8::Handle<v8::Function>::Cast(enginejs);
 	
 	v8::Handle<v8::Object> inject = v8::Object::New();
-	inject->Set(v8::String::New("IOREAD"), v8::FunctionTemplate::New(ioRead)->GetFunction());
-	inject->Set(v8::String::New("IOWRITE"), v8::FunctionTemplate::New(ioWrite)->GetFunction());
-	inject->Set(v8::String::New("IOFLUSH"), v8::FunctionTemplate::New(ioFlush)->GetFunction());
-	inject->Set(v8::String::New("FSREAD"), v8::FunctionTemplate::New(fsRead)->GetFunction());
-	inject->Set(v8::String::New("FSWRITE"), v8::FunctionTemplate::New(fsWrite)->GetFunction());
-	inject->Set(v8::String::New("SYSEXEC"), v8::FunctionTemplate::New(sysExec)->GetFunction());
-	inject->Set(v8::String::New("SYSEXIT"), v8::FunctionTemplate::New(sysExit)->GetFunction());
-	inject->Set(v8::String::New("CONTENTTYPENEEDED"), v8::FunctionTemplate::New(contentTypeNeeded)->GetFunction());
-	inject->Set(v8::String::New("ISCONTENTTYPENEEDED"), v8::FunctionTemplate::New(isContentTypeNeeded)->GetFunction());
+	inject->Set(v8::String::New("__IORead__"), v8::FunctionTemplate::New(ioRead)->GetFunction());
+	inject->Set(v8::String::New("__IOWrite__"), v8::FunctionTemplate::New(ioWrite)->GetFunction());
+	inject->Set(v8::String::New("__IOFlush__"), v8::FunctionTemplate::New(ioFlush)->GetFunction());
+	inject->Set(v8::String::New("__FSRead__"), v8::FunctionTemplate::New(fsRead)->GetFunction());
+	inject->Set(v8::String::New("__FSWrite__"), v8::FunctionTemplate::New(fsWrite)->GetFunction());
+	inject->Set(v8::String::New("__SysExec__"), v8::FunctionTemplate::New(sysExec)->GetFunction());
+	inject->Set(v8::String::New("__SysExit__"), v8::FunctionTemplate::New(sysExit)->GetFunction());
+	inject->Set(v8::String::New("__SetContentTypeNeeded__"), v8::FunctionTemplate::New(setContentTypeNeeded)->GetFunction());
+	inject->Set(v8::String::New("__IsContentTypeNeeded__"), v8::FunctionTemplate::New(isContentTypeNeeded)->GetFunction());
 	v8::Handle<v8::Value> args[1] = {inject};
 	
 	enginejs_func->Call(context->Global(), 1, args);

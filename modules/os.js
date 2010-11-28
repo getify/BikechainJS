@@ -1,5 +1,5 @@
 /*! BikechainJS (os.js)
-	v0.0.1.3 (c) Kyle Simpson
+	v0.0.1.4 (c) Kyle Simpson
 	MIT License
 */
 
@@ -23,13 +23,13 @@ return (function(global){
 	}
 	
 	function execute() {
-		var exec = SYSEXEC.apply(global,arguments);
+		var exec = __SysExec__.apply(global,arguments);
 		
 		return iopipe(exec);
 	}
 	
 	publicAPI = {
-		execute:execute
+		execute: execute
 	};	
 	return publicAPI;
 	

@@ -1,17 +1,29 @@
 /*! BikechainJS (request.js)
-	v0.0.1.3 (c) Kyle Simpson
+	v0.0.1.4 (c) Kyle Simpson
 	MIT License
 */
 
 return (function(){
 				 
-	var publicAPI;
+	var publicAPI,
+		SYSTEM = require("system"),
+		RESPONSE = require("response"),
+		REQUEST_DATA
+	;
 
-	function parse(REQUEST_DATA) {
-		// clone the object so as not to disturb the original -- since must be JSON, this is safe
-		REQUEST_DATA = JSON.parse(JSON.stringify(REQUEST_DATA));
+	function Process() {
+		// import the REQUEST_DATA from the web server layer
+		try {
+			REQUEST_DATA = SYSTEM.stdin.read(false);
+			if (!REQUEST_DATA) throw new Error(""); // REQUEST empty, trigger error-catch clause
+			REQUEST_DATA = JSON.parse(REQUEST_DATA);
+		}
+		catch (err) {
+			RESPONSE.Header("Status: 500 Internal Error");
+			exit();
+		}
 		
-		// process HTTP Cookies from REQUEST_DATA
+		// process `HTTP Cookie` data
 		if (REQUEST_DATA.HTTP_COOKIE) {
 			REQUEST_DATA.COOKIES = {};
 			var cookies = REQUEST_DATA.HTTP_COOKIE.split(";"), parts, name, value;
@@ -24,7 +36,7 @@ return (function(){
 			}
 		}
 		
-		// process HTTP POST data
+		// process `HTTP Post` data
 		if (REQUEST_DATA.REQUEST_METHOD == "POST") {
 			REQUEST_DATA.POST = {};
 			var post_params = REQUEST_DATA.POST_DATA.split("&"), parts, name, value;
@@ -37,7 +49,7 @@ return (function(){
 			}
 		}
 		
-		// process HTTP GET data
+		// process `HTTP Get` data
 		if (REQUEST_DATA.QUERY_STRING != "") {
 			REQUEST_DATA.GET = {};
 			var get_params = REQUEST_DATA.QUERY_STRING.split("&"), parts, name, value;
@@ -50,6 +62,13 @@ return (function(){
 			}
 		}
 		
+		// parse session cookie data from REQUEST_DATA
+		if (REQUEST_DATA.COOKIES && typeof REQUEST_DATA.COOKIES.__session__ != "undefined") {
+			var parts = REQUEST_DATA.COOKIES.__session__.split("|");
+			REQUEST_DATA.SESSION_NAME = parts[0];
+			if (parts[1]) REQUEST_DATA.SESSION_ID = parts[1];
+		}
+
 		// augment REQUEST_DATA with helpful translated variables for use in route matching
 		REQUEST_DATA.SCRIPT_ROOT				= REQUEST_DATA.SCRIPT_NAME.replace(/^(\/?([^\/]+\/)*).*$/,"$1");
 		REQUEST_DATA.RELATIVE_REQUEST_URI		= REQUEST_DATA.REQUEST_URI.replace(new RegExp("^"+REQUEST_DATA.SCRIPT_ROOT),"");
@@ -61,23 +80,33 @@ return (function(){
 		return REQUEST_DATA;
 	}
 	
-	function value(REQUEST_DATA,name) {
-		if (REQUEST_DATA.GET && REQUEST_DATA.GET[name]) {
+	function GetData() {
+		return REQUEST_DATA;
+	}
+	
+	function GetValue(name) {
+		if (REQUEST_DATA.GET && typeof REQUEST_DATA.GET[name] != "undefined") {
 			return REQUEST_DATA.GET[name];
 		}
-		else if (REQUEST_DATA.POST && REQUEST_DATA.POST[name]) {
+		else if (REQUEST_DATA.POST && typeof REQUEST_DATA.POST[name] != "undefined") {
 			return REQUEST_DATA.POST[name];
 		}
 	}
 	
-	function exists(REQUEST_DATA,name) {
-		return (typeof value(REQUEST_DATA,name) != "undefined");
+	function IsValueSet(name) {
+		return (typeof GetValue(name) != "undefined");
+	}
+	
+	function GetSession() {
+		return ((REQUEST_DATA.COOKIES && typeof REQUEST_DATA.COOKIES.__session__ != "undefined") ? REQUEST_DATA.COOKIES.__session__ : null);
 	}
 
 	publicAPI = {
-		parse:parse,
-		value:value,
-		exists:exists
+		Process: Process,
+		GetData: GetData,
+		GetValue: GetValue,
+		IsValueSet: IsValueSet,
+		GetSession: GetSession
 	};
 	return publicAPI;
 
