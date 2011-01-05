@@ -1,5 +1,5 @@
 /*  BikechainJS (engine)
-v0.0.1.4 (c) Kyle Simpson
+v0.0.1.4b (c) Kyle Simpson
 MIT License
 */
 
@@ -131,7 +131,7 @@ v8::Handle<v8::Value> isContentTypeNeeded(const v8::Arguments& args) {
 // Reads a file into a v8 string.
 v8::Handle<v8::Value> ReadFile(const char* name) {
 	FILE* file = fopen(name, "rb");
-	if (file == NULL) return v8::ThrowException(v8::String::New("Error reading from file"));
+	if (file == NULL) return v8::ThrowException(v8::String::New((std::string("Error reading from file: ")+std::string(name)).c_str()));	
 	
 	fseek(file, 0, SEEK_END);
 	int size = ftell(file);
