@@ -1,0 +1,25 @@
+/*  BikechainJS (engine.json configuration)
+	v0.0.1.9 (c) Kyle Simpson
+	MIT License
+*/
+
+{
+	// controls log/error output
+	"logging": true,										// default: false
+	"log_format": "json",									// default: "common"; values: "common", "json"
+	"log_level": 1,											// default: 1; values: 0(notice), 1(console)
+	"error_log_level": 2,									// default: 2; values: 0(warning), 1(error), 2(fatal)
+	
+	// controls log/error output to bikechain log files
+	"file_logging": true,									// default: false
+	
+	// NOTE: relative paths will be relative to bikechain's root directory
+	"file_log_file": "logs/bikechain.json",					// default: "logs/bikechain.json"
+	"file_log_error_file": "logs/bikechain.error.json",		// default: "logs/bikechain.error.json"
+
+	// controls log/error output to standard system event queue	
+	"system_event_logging": false,							// default: false
+	
+	// dumps errors to stdout as well
+	"display_errors": false									// default: false
+}

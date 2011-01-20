@@ -1,10 +1,10 @@
 /*! BikechainJS (engine.js)
-	v0.0.1.4 (c) Kyle Simpson
+	v0.0.1.9 (c) Kyle Simpson
 	MIT License
 */
 
 
-(function(imports){
+(function(bikechain_root_path, imports){
 	var global = this,
 		FS, 
 		SYSTEM,
@@ -25,7 +25,7 @@
 	// special function `require` for loading modules
 	global.require = function(module_path,forceReload) {
 		forceReload = !(!forceReload);
-		var module_repo_path = "bikechain/modules/", 
+		var module_repo_path = bikechain_root_path+"modules/", 
 			source, module_name
 		;
 		
@@ -43,18 +43,22 @@
 			module_name = module_name[1];
 		}
 		else { // otherwise, bail now
-			return void 0;
+			throw new Error("Failed loading unknown module from path: "+module_path);
 		}
 
 		if (!FS) {
-			source = imports.__FSRead__(module_repo_path+"fs.js");
+			try { source = imports.__FSRead__(module_repo_path+"fs.js"); }
+			catch (err) { throw new Error("Failed loading module `fs` from path: "+module_repo_path+"fs.js"); }
+			
 			loaded_modules["fs"] = FS = Function.apply(global,imports_names.concat([source])).apply(global,imports_funcs);
 		}
 		if (!forceReload && typeof loaded_modules[module_name] !== "undefined") {
 			return loaded_modules[module_name];
 		}
 		if (module_name != "fs" || forceReload) {
-			source = FS.read(module_path);
+			try { source = FS.read(module_path); }
+			catch (err) { throw new Error("Failed loading module `"+module_name+"` from path: "+module_path); }
+			
 			return (loaded_modules[module_name] = Function.apply(global,imports_names.concat([source])).apply(global,imports_funcs));
 		}
 		return FS;
@@ -74,22 +78,45 @@
 		if (!forceReload && typeof loaded_includes[src] != "undefined") {
 			return loaded_includes[src];
 		}
-		loaded_includes[src] = FS.read(src);
+		try { loaded_includes[src] = FS.read(src); }
+		catch (err) { throw new Error("Failed including file from path: "+src); }
+		
 		eval.call(this,loaded_includes[src]);
 	});
 	
 	// sandbox `include_once` as special core function
 	global.include_once = SANDBOX(function(src){
 		if (typeof loaded_includes[src] == "undefined") {
-			global.include.call(this,src);
+			try { global.include.call(this,src); }
+			catch (err) { throw new Error("Failed including file from path: "+src); }
 		}
 	});
 	
 	// sandbox alert and console.xxx as special core functions
 	global.console = {};
-	global.alert = global.console.log = global.console.warn = global.console.error = SANDBOX(function(){
+	global.alert = SANDBOX(function(){
 		for (var i=0, len=arguments.length; i<len; i++) {
 			SYSTEM.stdout.print(arguments[i]);
+		}
+	});
+	global.console.info = SANDBOX(function(){
+		for (var i=0, len=arguments.length; i<len; i++) {
+			imports.__Console__("notice",arguments[i]);
+		}
+	});
+	global.console.log = SANDBOX(function(){
+		for (var i=0, len=arguments.length; i<len; i++) {
+			imports.__Console__("log",arguments[i]);
+		}
+	});
+	global.console.warn = SANDBOX(function(){
+		for (var i=0, len=arguments.length; i<len; i++) {
+			imports.__Console__("warn",arguments[i]);
+		}
+	});
+	global.console.error = SANDBOX(function(){
+		for (var i=0, len=arguments.length; i<len; i++) {
+			imports.__Console__("error",arguments[i]);
 		}
 	});
 	
@@ -100,8 +127,8 @@
 	});
 
 	// pull in custom extension JSON.minify() to strip comments from JSON strings read from files
-	include_once("bikechain/misc/minify.json.js");
+	include_once(bikechain_root_path+"misc/minify.json.js");
 	
 	// pull in String.trim() if not defined yet by the JavaScript environment
-	include_once("bikechain/misc/string.trim.js");
+	include_once(bikechain_root_path+"misc/string.trim.js");
 })

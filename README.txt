@@ -1,5 +1,5 @@
 BikechainJS Engine
-v0.0.1.4 (c) 2010 Kyle Simpson
+v0.0.1.9 (c) 2010 Kyle Simpson
 MIT License
 
 
@@ -19,11 +19,15 @@ Installation:
 
 3. If you created the "static" V8 library, edit the makefile to reference to proper static library file.
 
-4. Run "make" and then "make clean".
+4. Run "make install" and then "make clean".
 
-5. You should now have a "engine" executable in the root directory. You can execute a JavaScript file by passing it as a parameter to engine, like this:
+5. You should now have a "engine" executable in the [root]/engine/ directory. You can execute a JavaScript file by passing it as a parameter to engine, like this:
 
 ./engine dosomething.js
+
+6. You can configure your BikechainJS instance by editing values in the engine.json file, also in the [root]/engine/ directory.
+
+7. Make sure the [root]/logs directory is writeable by the user/process executing bikechain.
 
 
 --------------
@@ -36,14 +40,14 @@ Provided global environment:
 
 3. include_once(path-to-file): will ensure an exact file (via path) only gets loaded/parsed once.
 
-4. alert(), console.log(), console.warn(), and console.error() are all defined and mapped to [system].stdout.print().
+4. alert() maps to [system].stdout.print(). console.info(), console.log(), console.warn(), and console.error() all send messages to the logs.
 
 5. exit() to immediately stop execution of any javascript in this instance and flush output.
 
 
 --------------
 
-Modules:
+Modules (provided in [root]/modules/):
 
 Several modules are available to be loaded into the executing environment by using the global require() function.
 
@@ -52,7 +56,7 @@ Several modules are available to be loaded into the executing environment by usi
  *  [system].stdout.write(str): writes "str" to the standard output
  *  [system].stdout.print(str): writes "str" to the standard output, followed by a new-line
  *  [system].stdout.flush(): flushes the output buffer (if necessary)
- *  [system].stdin.read(): if stdin has any buffered, reads from stdin up until an EOF. Otherwise, read returns empty immediately (non-blocking).
+ *  [system].stdin.read(nonblocking[=true]): if non-blocking (default), if stdin has any buffered, reads from stdin up until an EOF. Otherwise, read returns empty immediately. If not non-blocking, read() blocks waiting for input.
  *  [system].stderr.write(str): same as stdout.write()
  *  [system].stderr.print(str): same as stdout.print()
  *  [system].stderr.flush(): same as stdout.flush()
@@ -66,7 +70,7 @@ Several modules are available to be loaded into the executing environment by usi
 
 3. "os": Operating System (process execution)
 
- *  [os].command(cmd, [..cmds, ..]): execute a command on the local system, specified by "cmd" and "cmds" parameters
+ *  [os].execute(input, cmd, [..cmds, ..]): execute a command on the local system, specified by "cmd" and "cmds" parameters
     -- returns iopipe:
          [iopipe].stdout.read(): reads the output from the executed command
 
