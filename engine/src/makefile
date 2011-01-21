@@ -11,7 +11,7 @@ engine.o : engine.cpp
 
 install	: engine
 	strip ./engine
-	cp ./engine ../engine
+	mv ./engine ../engine
 	chmod 750 ../engine
 
 clean:
