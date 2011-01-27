@@ -1,5 +1,5 @@
 /*  BikechainJS (engine)
-    v0.0.1.9 (c) Kyle Simpson
+    v0.0.1.10 (c) Kyle Simpson
     MIT License
 */
 
@@ -286,13 +286,14 @@ v8::Handle<v8::Value> executeProcess(const v8::Arguments& args) {
 	// take off args[0], since will be sent into stdin of process
 	num_args--;
 	std::string input_data = ToStdString(args[0]);
+	std::string tmp_arg;
 	
 	// copy the args array (starting at index 1) into cmd_args
 	cmd_args = (char**)malloc((num_args+1)*sizeof(char*));
 	for (i=0; i<num_args; i++) {
-		v8::String::Utf8Value tmp(args[i+1]);
-		cmd_args[i] = (char*)malloc(strlen(ToCString(tmp))*sizeof(char));
-		strcpy(cmd_args[i],ToCString(tmp));
+		tmp_arg = ToStdString(args[i+1]);
+		cmd_args[i] = (char*)malloc((tmp_arg.length()+1)*sizeof(char));
+		strcpy(cmd_args[i],tmp_arg.c_str());
 	}
 	cmd_args[num_args] = (char *)0;	// mark the end of the args array for execvp()
 	
