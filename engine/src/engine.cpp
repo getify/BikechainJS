@@ -1,5 +1,5 @@
 /*  BikechainJS (engine)
-    v0.0.1.10 (c) Kyle Simpson
+    v0.0.1.11 (c) Kyle Simpson
     MIT License
 */
 
@@ -404,14 +404,21 @@ bool ExecuteString(v8::Handle<v8::String> source, v8::Handle<v8::Value> name) {
 v8::Handle<v8::Value> ExecuteStringValue(v8::Handle<v8::String> source, v8::Handle<v8::Value> name) {
 	v8::HandleScope handle_scope;
 	v8::TryCatch try_catch;
+	v8::Handle<v8::Value> empty_val;
 	v8::Handle<v8::Script> script = v8::Script::Compile(source, name);
 	if (script.IsEmpty()) {
 		// Print errors that happened during compilation.
 		ReportException(&try_catch);
-		return v8::Undefined();
+		return handle_scope.Close(empty_val);
 	}
 	else {
-		return handle_scope.Close(script->Run());
+		v8::TryCatch try_catch2;
+		v8::Handle<v8::Value> result = script->Run();
+		if (result.IsEmpty()) {
+			ReportException(&try_catch2);
+			return handle_scope.Close(empty_val);
+		}
+		return handle_scope.Close(result);
 	}
 }
 
@@ -588,6 +595,7 @@ bool logMessage(std::string message, int msg_type) {
 //	1: console
 //	2: warning
 //	3: error
+//  4: fatal
 
 	if (message.empty()) {
 		return false;
@@ -605,7 +613,7 @@ bool logMessage(std::string message, int msg_type) {
 			std::string file_log_file = ToStdString(cfg->Get(v8::String::New("file_log_file")));
 			std::string file_log_error_file = ToStdString(cfg->Get(v8::String::New("file_log_error_file")));
 			int log_level = cfg->Get(v8::String::New("log_level"))->IntegerValue();
-			int error_log_level = cfg->Get(v8::String::New("error_log_level"))->IntegerValue();
+			int error_log_level = cfg->Get(v8::String::New("error_log_level"))->IntegerValue() + 2;
 			
 			if (log_format == "json") write_msg = ",\n " + write_msg + "\n]\n";
 			else write_msg += "\n";
@@ -616,7 +624,7 @@ bool logMessage(std::string message, int msg_type) {
 						init_log_file(log_format,file_log_file,file_log_file_handle);
 						write_to_log_file(log_format,write_msg,file_log_file_handle);
 					}
-					else if (msg_type >= 2 && (error_log_level+2) <= msg_type) {
+					else if (msg_type >= 2 && error_log_level <= msg_type) {
 						init_log_file(log_format,file_log_error_file,file_log_error_file_handle);
 						write_to_log_file(log_format,write_msg,file_log_error_file_handle);
 					}
@@ -687,14 +695,15 @@ std::string current_timestamp() {
 	return ts;
 }
 
-bool log(std::string msg, int msg_type=0, int errorNumber) {
+bool log(std::string msg, int msg_type, int errorNumber) {
 // msg_type:
 //	0: notice
 //	1: console
 //	2: warning
 //	3: error
+//  4: fatal
 
-	std::string types[4] = {"Notice", "Console", "Warning", "Error"};
+	std::string types[5] = {"Notice", "Console", "Warning", "Error", "Fatal"};
 
 	if (!msg.empty()) {
 		std::vector< std::pair<std::string,std::string> > msg_vec;
@@ -717,7 +726,7 @@ bool log_notice(std::string msg) { return log(msg,0); }
 bool log_console(std::string msg) { return log(msg,1); }
 bool log_warning(std::string msg) { return log(msg,2); }
 bool log_error(std::string msg, int error_number) { return log(msg,3,error_number); }
-bool log_fatal(std::string msg, int error_number) { return log(msg,3,error_number); }
+bool log_fatal(std::string msg, int error_number) { return log(msg,4,error_number); }
 
 
 int RunMain(int argc, char* argv[]) {

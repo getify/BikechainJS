@@ -1,5 +1,5 @@
 /*  BikechainJS (engine)
-	v0.0.1.9 (c) Kyle Simpson
+	v0.0.1.11 (c) Kyle Simpson
 	MIT License
 */
 
@@ -45,7 +45,7 @@ std::string stringify(int num);
 std::string left_pad_str(std::string str, int to_length, char pad=' ');
 std::string current_timestamp();
 
-bool log(std::string msg, int msg_type, int error_number=0);
+bool log(std::string msg, int msg_type=0, int error_number=0);
 bool log_notice(std::string msg);
 bool log_console(std::string msg);
 bool log_warning(std::string msg);
