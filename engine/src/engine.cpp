@@ -1,5 +1,5 @@
 /*  BikechainJS (engine)
-    v0.0.1.11 (c) Kyle Simpson
+    v0.0.2 (c) Kyle Simpson
     MIT License
 */
 
@@ -17,6 +17,7 @@
 #include <string>
 #include <time.h>
 #include <cstdlib>
+#include <semaphore.h>
 #include <sys/types.h>
 #include <signal.h>
 #include <sys/wait.h>
@@ -36,8 +37,12 @@
 int content_type_needed = 0;
 bool backchannel_ready = false;
 
-FILE *file_log_file_handle;
-FILE *file_log_error_file_handle;
+FILE* file_log_file_handle;
+sem_t* log_file_lock;
+std::string log_file_lock_name = "/bikechain_log_file_lock";
+FILE* file_log_error_file_handle;
+sem_t* error_log_file_lock;
+std::string error_log_file_lock_name = "/bikechain_error_log_file_lock";
 std::string bikechain_root_path_directory;
 v8::Handle<v8::Context> backchannel_context;
 v8::Handle<v8::Context> engine_context;
@@ -50,7 +55,7 @@ v8::Handle<v8::Function> setcfg_func;
 char* gnu_getcwd() {
 	size_t size = 100;
 	while (1) {
-		char *buffer = (char*)malloc(size);
+		char *buffer = (char*)malloc(size*sizeof(char));
 		if (getcwd (buffer, size) == buffer) {
 			return buffer;
 		}
@@ -63,25 +68,34 @@ char* gnu_getcwd() {
 }
 
 // Extracts a C string from a V8 Utf8Value.
-const char* ToCString(const v8::String::Utf8Value& value) {
+const char* v8ToCString(const v8::String::Utf8Value& value) {
 	return *value ? *value : "<string conversion failed>";
 }
 
 // converts a v8::Value handle to a std::string
-std::string ToStdString(v8::Handle<v8::Value> value) {
-	return std::string(ToCString(v8::String::Utf8Value(value)));
+std::string v8ToStdString(v8::Handle<v8::Value> value) {
+	return std::string(v8ToCString(v8::String::Utf8Value(value)));
 }
 
 v8::Handle<v8::Value> ioRead(const v8::Arguments& args) {
 	v8::String::Utf8Value nonblocking(args[0]);
-	return ReadIO((strcmp(ToCString(nonblocking),"true") == 0));
+	return ReadIO((strcmp(v8ToCString(nonblocking),"true") == 0));
 }
 
 v8::Handle<v8::Value> ioWrite(const v8::Arguments& args) {
 	for (int i = 0; i < args.Length(); i++) {
 		v8::HandleScope handle_scope;
 		v8::String::Utf8Value str(args[i]);
-		WriteIO(ToCString(str));
+		WriteIO(v8ToCString(str));
+	}
+	return v8::Undefined();
+}
+
+v8::Handle<v8::Value> ioErrWrite(const v8::Arguments& args) {
+	for (int i = 0; i < args.Length(); i++) {
+		v8::HandleScope handle_scope;
+		v8::String::Utf8Value str(args[i]);
+		WriteIOErr(v8ToCString(str));
 	}
 	return v8::Undefined();
 }
@@ -99,7 +113,7 @@ v8::Handle<v8::Value> fsRead(const v8::Arguments& args) {
 	if (*file == NULL) {
 		return v8::ThrowException(v8::String::New("Error loading file"));
 	}
-	v8::Handle<v8::Value> source = ReadFile(ToCString(file));
+	v8::Handle<v8::Value> source = ReadFile(v8ToCString(file));
 	return source;
 }
 
@@ -113,7 +127,7 @@ v8::Handle<v8::Value> fsWrite(const v8::Arguments& args) {
 		return v8::ThrowException(v8::String::New("Error writing file"));
 	}
 	
-	WriteFile(ToCString(file),ToCString(content),strlen(ToCString(content)));
+	WriteFile(v8ToCString(file),v8ToCString(content),strlen(v8ToCString(content)));
 	
 	return v8::Undefined();
 }
@@ -140,10 +154,8 @@ v8::Handle<v8::Value> sysExit(const v8::Arguments& args) {
 	}
 	
 	v8::String::Utf8Value exitStatus(args[0]);
-	int status = atoi(ToCString(exitStatus));
-	v8::V8::Dispose();
-	fclose(file_log_file_handle);
-	fclose(file_log_error_file_handle);
+	int status = atoi(v8ToCString(exitStatus));
+	cleanup();
 	exit(status);
 }
 
@@ -152,8 +164,8 @@ v8::Handle<v8::Value> sysConsole(const v8::Arguments& args) {
 		return v8::ThrowException(v8::String::New("Bad parameters"));
 	}
 	
-	std::string console_type = ToStdString(args[0]);
-	std::string console_msg = ToStdString(args[1]);
+	std::string console_type = v8ToStdString(args[0]);
+	std::string console_msg = v8ToStdString(args[1]);
 	
 	if (console_type == "notice") return v8::Boolean::New(log_notice(console_msg));
 	else if (console_type == "log") return v8::Boolean::New(log_console(console_msg));
@@ -164,7 +176,7 @@ v8::Handle<v8::Value> sysConsole(const v8::Arguments& args) {
 
 v8::Handle<v8::Value> setContentTypeNeeded(const v8::Arguments& args) {
 	v8::String::Utf8Value flag(args[0]);
-	content_type_needed = atoi(ToCString(flag));
+	content_type_needed = atoi(v8ToCString(flag));
 	return v8::Undefined();
 }
 
@@ -172,12 +184,53 @@ v8::Handle<v8::Value> isContentTypeNeeded(const v8::Arguments& args) {
 	return v8::Boolean::New(content_type_needed);
 }
 
+v8::Handle<v8::Value> executeCode(const v8::Arguments& args) {
+	if (args.Length() != 2) {
+		return v8::ThrowException(v8::String::New("Bad parameters"));
+	}
+	
+	if (!ExecuteString(v8::Handle<v8::String>::Cast(args[0]),v8::Handle<v8::String>::Cast(args[1]))) {
+		return v8::ThrowException(v8::String::New((std::string("Failed including: `")+v8ToStdString(args[1])+"`").c_str()));
+	}
+	
+	return v8::Undefined();
+}
+
+v8::Handle<v8::Value> executeModule(const v8::Arguments& args) {
+	v8::HandleScope handle_scope;
+	if (args.Length() != 3) {
+		return v8::ThrowException(v8::String::New("Bad parameters"));
+	}
+
+	v8::Handle<v8::Value> result = ExecuteStringValue(v8::Handle<v8::String>::Cast(args[0]), v8::Handle<v8::String>::Cast(args[1]));
+	
+	if (result.IsEmpty()) {
+		return v8::ThrowException(v8::String::New((std::string("Failed parsing module: `")+v8ToStdString(args[1])+"`").c_str()));
+	}
+	
+	v8::Handle<v8::Function> module_func = v8::Handle<v8::Function>::Cast(result);
+
+	v8::Handle<v8::Array> arg_list(v8::Array::Cast(*(args[2])));
+	int arg_list_len = arg_list->Length();
+	
+	std::vector< v8::Handle<v8::Value> > func_args;
+	for (int i=0; i<arg_list_len; i++) {
+		func_args.push_back(arg_list->CloneElementAt(i));
+	}
+	
+	v8::Handle<v8::Value> res = module_func->Call(engine_context->Global(), arg_list_len, &func_args[0]);
+	if (res.IsEmpty()) {
+		return v8::Undefined();
+	}
+
+	return res;
+}
+
 // Reads a file into a v8 string.
 v8::Handle<v8::Value> ReadFile(const char* name) {
 	FILE* file = fopen(name, "rb");
 	if (file == NULL) {
-		v8::ThrowException(v8::String::New((std::string("Error reading from file: ")+std::string(name)).c_str()));
-		return v8::Undefined();
+		return v8::ThrowException(v8::String::New((std::string("Failed reading from file: `")+name+"`").c_str()));
 	}
 	
 	fseek(file, 0, SEEK_END);
@@ -267,6 +320,10 @@ void WriteIO(const char* content) {
 	printf("%s", content);
 }
 
+void WriteIOErr(const char* content) {
+	fprintf(stderr, "%s", content);
+}
+
 void FlushIO() {
 	fflush(stdout);
 }
@@ -285,13 +342,13 @@ v8::Handle<v8::Value> executeProcess(const v8::Arguments& args) {
 	
 	// take off args[0], since will be sent into stdin of process
 	num_args--;
-	std::string input_data = ToStdString(args[0]);
+	std::string input_data = v8ToStdString(args[0]);
 	std::string tmp_arg;
 	
 	// copy the args array (starting at index 1) into cmd_args
 	cmd_args = (char**)malloc((num_args+1)*sizeof(char*));
 	for (i=0; i<num_args; i++) {
-		tmp_arg = ToStdString(args[i+1]);
+		tmp_arg = v8ToStdString(args[i+1]);
 		cmd_args[i] = (char*)malloc((tmp_arg.length()+1)*sizeof(char));
 		strcpy(cmd_args[i],tmp_arg.c_str());
 	}
@@ -319,7 +376,7 @@ v8::Handle<v8::Value> executeProcess(const v8::Arguments& args) {
 				close(pipe_to_child[0]);
 				close(pipe_to_child[1]);
 				
-				execvp(ToCString(cmd),cmd_args);
+				execvp(v8ToCString(cmd),cmd_args);
 				exit(1);	// if we get here, the execute didn't work, so bail on child process
 			
 			default: // parent process
@@ -370,7 +427,7 @@ v8::Handle<v8::Value> executeProcess(const v8::Arguments& args) {
 
 void ReportException(v8::TryCatch* try_catch) {
 	v8::HandleScope handle_scope;
-	std::string exception_string = ToStdString(try_catch->Exception());
+	std::string exception_string = v8ToStdString(try_catch->Exception());
 	v8::Handle<v8::Message> message = try_catch->Message();
 	
 	if (content_type_needed) {
@@ -385,29 +442,27 @@ void ReportException(v8::TryCatch* try_catch) {
 	}
 	else {
 		// Print (filename):(line number):(char position) (message).
-		std::string filename_string = ToStdString(message->GetScriptResourceName());
+		std::string filename_string = v8ToStdString(message->GetScriptResourceName());
 		int linenum = message->GetLineNumber();
 		int start = message->GetStartColumn();
-		std::string sourceline_string = ToStdString(message->GetSourceLine());
-		
+		std::string sourceline_string = v8ToStdString(message->GetSourceLine());
+
 		log_error(filename_string + ":" + stringify(linenum) + ":" + stringify(start) + " " + exception_string + "\n" + sourceline_string);
 	}
 }
 
-bool ExecuteString(v8::Handle<v8::String> source, v8::Handle<v8::Value> name) {
-	v8::HandleScope handle_scope;
+bool ExecuteString(v8::Handle<v8::String> source, v8::Handle<v8::String> name) {
 	v8::Handle<v8::Value> result = ExecuteStringValue(source, name);
-	
+
 	return !result.IsEmpty();
 }
 
-v8::Handle<v8::Value> ExecuteStringValue(v8::Handle<v8::String> source, v8::Handle<v8::Value> name) {
+v8::Handle<v8::Value> ExecuteStringValue(v8::Handle<v8::String> source, v8::Handle<v8::String> name) {
 	v8::HandleScope handle_scope;
-	v8::TryCatch try_catch;
 	v8::Handle<v8::Value> empty_val;
+	v8::TryCatch try_catch;
 	v8::Handle<v8::Script> script = v8::Script::Compile(source, name);
 	if (script.IsEmpty()) {
-		// Print errors that happened during compilation.
 		ReportException(&try_catch);
 		return handle_scope.Close(empty_val);
 	}
@@ -427,6 +482,19 @@ std::vector<std::string> split_path(std::string path) {
 	int pos = path.find_last_of("/");
 	ret[0] = path.substr(0,pos) + "/";
 	ret[1] = path.substr(pos+1);
+	return ret;
+}
+
+std::string escape_whitespace(std::string str) {
+	std::string ret = str;
+	std::string repl;
+	int pos;
+	while ((pos=ret.find_first_of("\n\r\t"))!=std::string::npos) {
+		if (str[pos] == '\n') repl = "\\n";
+		else if (str[pos] == '\r') repl = "\\r";
+		else if (str[pos] == '\t') repl = "\\t";
+		ret.replace(pos,1,repl);
+	}
 	return ret;
 }
 
@@ -500,6 +568,8 @@ std::string formatLogMessageBasic(std::vector< std::pair<std::string,std::string
 		// default ("common") format: display each value, with space as separator
 		formatted += ((!formatted.empty()) ? " " : "") + ii->second;
 	}
+	
+	formatted = escape_whitespace(formatted);
 
 	return formatted;
 }
@@ -518,7 +588,7 @@ std::string formatLogMessage(std::vector< std::pair<std::string,std::string> > m
 
 	if (format == "*") {
  		obj_inject = v8::Object::New();
- 		log_format = ToStdString(getCfgVal(std::string("log_format")));
+ 		log_format = v8ToStdString(getCfgVal(std::string("log_format")));
 	}
 	else {
 		log_format = format;
@@ -544,9 +614,12 @@ std::string formatLogMessage(std::vector< std::pair<std::string,std::string> > m
 			return "";
 		}
 		
-		formatted = ToStdString(res);
+		formatted = v8ToStdString(res);
 	}
-
+	else {
+		formatted = escape_whitespace(formatted);
+	}
+	
 	return formatted;
 }
 
@@ -585,6 +658,9 @@ void write_to_log_file(std::string log_format, std::string str, FILE* fh) {
 	if (log_format == "json") {
 		fseek(fh, -3, SEEK_END);
 	}
+	else {
+		fseek(fh, 0, SEEK_END);
+	}
 	fwrite(str.c_str(),sizeof(char),str.length(),fh);
 	fflush(fh);
 }
@@ -609,9 +685,9 @@ bool logMessage(std::string message, int msg_type) {
 		
 		v8::Handle<v8::Object> cfg = getCfgObj();
 		if (!cfg.IsEmpty() && !cfg->IsUndefined()) {
-	 		std::string log_format = ToStdString(cfg->Get(v8::String::New("log_format")));
-			std::string file_log_file = ToStdString(cfg->Get(v8::String::New("file_log_file")));
-			std::string file_log_error_file = ToStdString(cfg->Get(v8::String::New("file_log_error_file")));
+	 		std::string log_format = v8ToStdString(cfg->Get(v8::String::New("log_format")));
+			std::string file_log_file = v8ToStdString(cfg->Get(v8::String::New("file_log_file")));
+			std::string file_log_error_file = v8ToStdString(cfg->Get(v8::String::New("file_log_error_file")));
 			int log_level = cfg->Get(v8::String::New("log_level"))->IntegerValue();
 			int error_log_level = cfg->Get(v8::String::New("error_log_level"))->IntegerValue() + 2;
 			
@@ -621,12 +697,16 @@ bool logMessage(std::string message, int msg_type) {
 			if (cfg->Get(v8::String::New("logging"))->BooleanValue()) {
 				if (cfg->Get(v8::String::New("file_logging"))->BooleanValue()) {
 					if ((msg_type == 0 || msg_type == 1) && (log_level <= msg_type)) {
+						sem_wait(log_file_lock);
 						init_log_file(log_format,file_log_file,file_log_file_handle);
 						write_to_log_file(log_format,write_msg,file_log_file_handle);
+						sem_post(log_file_lock);
 					}
 					else if (msg_type >= 2 && error_log_level <= msg_type) {
+						sem_wait(error_log_file_lock);
 						init_log_file(log_format,file_log_error_file,file_log_error_file_handle);
 						write_to_log_file(log_format,write_msg,file_log_error_file_handle);
+						sem_post(error_log_file_lock);
 					}
 				}
 				if (cfg->Get(v8::String::New("system_event_logging"))->BooleanValue()) {
@@ -688,7 +768,7 @@ std::string current_timestamp() {
 	if (tzoffset[0] != '-') tzoffset = "+" + tzoffset;
 	tzoffset = "GMT" + tzoffset.substr(0,1) + left_pad_str(tzoffset.substr(1),4,'0');
 	
-	ts = dow[timeinfo->tm_wday] + " " + mon[timeinfo->tm_mon] + " " + stringify(timeinfo->tm_mday) + " " + stringify(1900+timeinfo->tm_year);
+	ts = dow[timeinfo->tm_wday] + " " + mon[timeinfo->tm_mon] + " " + left_pad_str(stringify(timeinfo->tm_mday),2,'0') + " " + stringify(1900+timeinfo->tm_year);
 	ts += " " + left_pad_str(stringify(timeinfo->tm_hour),2,'0') + ":" + left_pad_str(stringify(timeinfo->tm_min),2,'0') + ":" + left_pad_str(stringify(timeinfo->tm_sec),2,'0');
 	ts += " " + tzoffset + " (" + std::string(*tzname) + ")";
 
@@ -728,11 +808,45 @@ bool log_warning(std::string msg) { return log(msg,2); }
 bool log_error(std::string msg, int error_number) { return log(msg,3,error_number); }
 bool log_fatal(std::string msg, int error_number) { return log(msg,4,error_number); }
 
+void cleanup() {
+	v8::V8::Dispose();
+	if (file_log_file_handle != NULL) fclose(file_log_file_handle);
+	if (file_log_error_file_handle != NULL) fclose(file_log_error_file_handle);
+	if (log_file_lock != NULL) {
+		sem_close(log_file_lock);
+		sem_unlink(log_file_lock_name.c_str());
+	}
+	if (error_log_file_lock != NULL) {
+		sem_close(error_log_file_lock);
+		sem_unlink(error_log_file_lock_name.c_str());
+	}
+}
+
 
 int RunMain(int argc, char* argv[]) {
 
+// ***** INITIALIZATION *****
 	// initialize the timezone info
 	tzset();
+	
+	// initialize the log file "locks" (semaphores)
+	log_file_lock = sem_open(log_file_lock_name.c_str(),O_CREAT,0666,1); // first, attempt to create
+	if (log_file_lock == SEM_FAILED) { // otherwise, try to just open
+		log_file_lock = sem_open(log_file_lock_name.c_str(),0);
+	}
+	if (log_file_lock == SEM_FAILED) { // if it still failed, bail
+		log_fatal("Failed log file lock initialization",errno);
+		return 1;
+	}
+	error_log_file_lock = sem_open(error_log_file_lock_name.c_str(),O_CREAT,0666,1); // first, attempt to create
+	if (error_log_file_lock == SEM_FAILED) { // otherwise, try to just open
+		error_log_file_lock = sem_open(error_log_file_lock_name.c_str(),0);
+	}
+	if (error_log_file_lock == SEM_FAILED) { // if it still failed, bail
+		log_fatal("Failed error log file lock initialization",errno);
+		return 1;
+	}
+
 
 // ***** SETUP *****
 	// get the current working directory and full executable path
@@ -752,7 +866,7 @@ int RunMain(int argc, char* argv[]) {
 	// start the V8 environment
 	v8::V8::SetFlagsFromCommandLine(&argc, argv, true);
 	v8::HandleScope handle_scope;
-	
+
 	v8::Handle<v8::String> bikechain_root_path = v8::String::New(bikechain_root_path_directory.c_str());
 
 // ***** BACKCHANNEL *****
@@ -784,7 +898,7 @@ int RunMain(int argc, char* argv[]) {
 		// load String.trim() utility
 		tmpval = ReadFile((bikechain_root_path_directory+"misc/string.trim.js").c_str());
 		if (tmpval.IsEmpty() || tmpval->IsUndefined()) {
-			log_fatal("Failed loading engine backchannel; `string.trim.js`");
+			log_fatal("Failed loading engine backchannel: `string.trim.js`");
 			return 1;
 		}
 		v8::Handle<v8::String> string_trim_source = v8::Handle<v8::String>::Cast(tmpval);
@@ -844,8 +958,8 @@ int RunMain(int argc, char* argv[]) {
 		v8::Handle<v8::Object> tmp_cfg = getCfgObj();
 		if (!tmp_cfg.IsEmpty() && !tmp_cfg->IsUndefined()) {
 			// canonicalize the `file_log_*` paths from the engine configuration
-			std::string file_log_file = get_canonical_path(bikechain_root_path_directory,ToStdString(tmp_cfg->Get(v8::String::New("file_log_file"))));
-			std::string file_log_error_file = get_canonical_path(bikechain_root_path_directory,ToStdString(tmp_cfg->Get(v8::String::New("file_log_error_file"))));
+			std::string file_log_file = get_canonical_path(bikechain_root_path_directory,v8ToStdString(tmp_cfg->Get(v8::String::New("file_log_file"))));
+			std::string file_log_error_file = get_canonical_path(bikechain_root_path_directory,v8ToStdString(tmp_cfg->Get(v8::String::New("file_log_error_file"))));
 			
 			// push the updated path values back into the configuration cache	
 			if (!setCfgVal("file_log_file", v8::String::New(file_log_file.c_str()))) {
@@ -906,6 +1020,7 @@ int RunMain(int argc, char* argv[]) {
 		v8::Handle<v8::Object> engine_inject = v8::Object::New();
 		engine_inject->Set(v8::String::New("__IORead__"), v8::FunctionTemplate::New(ioRead)->GetFunction());
 		engine_inject->Set(v8::String::New("__IOWrite__"), v8::FunctionTemplate::New(ioWrite)->GetFunction());
+		engine_inject->Set(v8::String::New("__IOErrWrite__"), v8::FunctionTemplate::New(ioErrWrite)->GetFunction());
 		engine_inject->Set(v8::String::New("__IOFlush__"), v8::FunctionTemplate::New(ioFlush)->GetFunction());
 		engine_inject->Set(v8::String::New("__FSRead__"), v8::FunctionTemplate::New(fsRead)->GetFunction());
 		engine_inject->Set(v8::String::New("__FSWrite__"), v8::FunctionTemplate::New(fsWrite)->GetFunction());
@@ -914,6 +1029,8 @@ int RunMain(int argc, char* argv[]) {
 		engine_inject->Set(v8::String::New("__Console__"), v8::FunctionTemplate::New(sysConsole)->GetFunction());
 		engine_inject->Set(v8::String::New("__SetContentTypeNeeded__"), v8::FunctionTemplate::New(setContentTypeNeeded)->GetFunction());
 		engine_inject->Set(v8::String::New("__IsContentTypeNeeded__"), v8::FunctionTemplate::New(isContentTypeNeeded)->GetFunction());
+		engine_inject->Set(v8::String::New("__ExecuteCode__"), v8::FunctionTemplate::New(executeCode)->GetFunction());
+		engine_inject->Set(v8::String::New("__ExecuteModule__"), v8::FunctionTemplate::New(executeModule)->GetFunction());
 		v8::Handle<v8::Value> engine_args[2] = {bikechain_root_path,engine_inject};
 		
 		// run engine
@@ -931,6 +1048,7 @@ int RunMain(int argc, char* argv[]) {
 // ***** COMMAND-LINE *****
 		
 		std::string filename_str;
+		std::vector<std::string> filename_str_parts;
 
 		// run parameter .js files
 		for (int i = 1; i < argc; i++) {
@@ -939,7 +1057,8 @@ int RunMain(int argc, char* argv[]) {
 			
 			// Use all arguments as names of files to load and run.
 			filename_str = get_canonical_path(path_cwd,std::string(str));
-			v8::Handle<v8::String> file_name = v8::String::New(filename_str.c_str());
+			filename_str_parts = split_path(filename_str);
+			v8::Handle<v8::String> file_name = v8::String::New(filename_str_parts[1].c_str());
 			
 			log_notice("Loading `" + filename_str + "`");
 
@@ -961,9 +1080,7 @@ int RunMain(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
 	int result = RunMain(argc, argv);
-	v8::V8::Dispose();
-	fclose(file_log_file_handle);
-	fclose(file_log_error_file_handle);
+	cleanup();
 	return result;
 }
 

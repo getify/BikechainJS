@@ -1,5 +1,5 @@
 /*! BikechainJS (engine.js)
-	v0.0.1.9 (c) Kyle Simpson
+	v0.0.2 (c) Kyle Simpson
 	MIT License
 */
 
@@ -43,26 +43,33 @@
 			module_name = module_name[1];
 		}
 		else { // otherwise, bail now
-			throw new Error("Failed loading unknown module from path: "+module_path);
+			throw new Error("Failed loading unknown module from: `"+module_path+"`");
 		}
 
 		if (!FS) {
 			try { source = imports.__FSRead__(module_repo_path+"fs.js"); }
-			catch (err) { throw new Error("Failed loading module `fs` from path: "+module_repo_path+"fs.js"); }
+			catch (err) { throw new Error("Failed loading module `fs` from: `"+module_repo_path+"fs.js`"); }
 			
-			loaded_modules["fs"] = FS = Function.apply(global,imports_names.concat([source])).apply(global,imports_funcs);
+			source = "(function(" + imports_names.join(",") + "){" + source + "})";
+			if (!(loaded_modules[module_repo_path+"fs.js"] = FS = imports.__ExecuteModule__(source,"fs.js",imports_funcs))) {
+				return;
+			}
 		}
-		if (!forceReload && typeof loaded_modules[module_name] !== "undefined") {
-			return loaded_modules[module_name];
+		if (!forceReload && typeof loaded_modules[module_path] !== "undefined") {
+			return loaded_modules[module_path];
 		}
 		if (module_name != "fs" || forceReload) {
 			try { source = FS.read(module_path); }
-			catch (err) { throw new Error("Failed loading module `"+module_name+"` from path: "+module_path); }
-			
-			return (loaded_modules[module_name] = Function.apply(global,imports_names.concat([source])).apply(global,imports_funcs));
+			catch (err) { throw new Error("Failed loading module `"+module_name+"` from: `"+module_path+"`"); }
+
+			source = "(function(" + imports_names.join(",") + "){" + source + "})";
+			if (!(loaded_modules[module_path] = imports.__ExecuteModule__(source,module_name+".js",imports_funcs))) {
+				return;
+			}
+			return loaded_modules[module_path];
 		}
 		return FS;
-	}
+	};
 	
 	// `sbfunction` protects special core functions
 	SANDBOX = global.require("sbfunction");
@@ -79,46 +86,39 @@
 			return loaded_includes[src];
 		}
 		try { loaded_includes[src] = FS.read(src); }
-		catch (err) { throw new Error("Failed including file from path: "+src); }
+		catch (err) { throw new Error("Failed including file: `"+src+"`"); }
 		
-		eval.call(this,loaded_includes[src]);
+		var filename = src.replace(/.*\//,"");
+		if (!imports.__ExecuteCode__(loaded_includes[src],filename)) {
+			return;
+		}
 	});
 	
 	// sandbox `include_once` as special core function
 	global.include_once = SANDBOX(function(src){
 		if (typeof loaded_includes[src] == "undefined") {
-			try { global.include.call(this,src); }
-			catch (err) { throw new Error("Failed including file from path: "+src); }
+			global.include.call(this,src);
 		}
 	});
 	
 	// sandbox alert and console.xxx as special core functions
-	global.console = {};
 	global.alert = SANDBOX(function(){
 		for (var i=0, len=arguments.length; i<len; i++) {
 			SYSTEM.stdout.print(arguments[i]);
 		}
 	});
-	global.console.info = SANDBOX(function(){
-		for (var i=0, len=arguments.length; i<len; i++) {
-			imports.__Console__("notice",arguments[i]);
-		}
-	});
-	global.console.log = SANDBOX(function(){
-		for (var i=0, len=arguments.length; i<len; i++) {
-			imports.__Console__("log",arguments[i]);
-		}
-	});
-	global.console.warn = SANDBOX(function(){
-		for (var i=0, len=arguments.length; i<len; i++) {
-			imports.__Console__("warn",arguments[i]);
-		}
-	});
-	global.console.error = SANDBOX(function(){
-		for (var i=0, len=arguments.length; i<len; i++) {
-			imports.__Console__("error",arguments[i]);
-		}
-	});
+	global.console = {};
+	var make_console_func = function(type) {
+		return SANDBOX(function(){
+			for (var i=0, len=arguments.length; i<len; i++) {
+				imports.__Console__(type,arguments[i]);
+			}
+		});
+	};
+	global.console.info = make_console_func("notice");
+	global.console.log = make_console_func("log");
+	global.console.warn = make_console_func("warn");
+	global.console.error = make_console_func("error");
 	
 	// sandbox "exit" as special core function
 	global.exit = SANDBOX(function(exit_code){

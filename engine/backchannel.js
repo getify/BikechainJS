@@ -1,5 +1,5 @@
 /*! BikechainJS (backchannel.js)
-	v0.0.1.9 (c) Kyle Simpson
+	v0.0.2 (c) Kyle Simpson
 	MIT License
 */
 
@@ -16,11 +16,12 @@
 			file_log_error_file: "logs/bikechain.error.json",
 			system_event_logging: false,
 			display_errors: false
-		}
+		},
+		prepared_cfg = JSON.minify(imports.cfg)
 	;
 	
 	try {
-		cfg = JSON.parse(JSON.minify(imports.cfg));
+		cfg = JSON.parse(prepared_cfg);
  	}
 	catch (err) {
 		throw new Error("Failed parsing engine configuration");

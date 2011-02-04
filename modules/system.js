@@ -1,5 +1,5 @@
 /*! BikechainJS (system.js)
-	v0.0.1.4 (c) Kyle Simpson
+	v0.0.2 (c) Kyle Simpson
 	MIT License
 */
 
@@ -16,6 +16,12 @@ return (function(){
 		}
 	}
 	
+	function err_write() {
+		for (var i=0; i<arguments.length; i++) {
+			__IOErrWrite__(arguments[i]);
+		}
+	}
+	
 	function flush() {
 		__IOFlush__();
 	}
@@ -26,17 +32,19 @@ return (function(){
 	stdout = {
 		write:write,
 		print:function(){
-			write.apply(this,arguments);
-			write("\n");
+			var args = [].slice.call(arguments);
+			args.push("\n");
+			write.apply(this,args);
 			flush();
 		}
 	};
 	stderr = {
-		write:function(){
-			publicAPI.stdout.write.apply(this,arguments);
-		},
+		write:err_write,
 		print:function(){
-			publicAPI.stdout.print.apply(this,arguments);
+			var args = [].slice.call(arguments);
+			args.push("\n");
+			err_write.apply(this,args);
+			flush();
 		}
 	};
 	
